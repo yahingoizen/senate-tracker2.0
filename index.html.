@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Capitol Trade Tracker — Live Senate Disclosures</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    .glass { background: rgba(30,41,59,0.7); backdrop-filter: blur(10px); }
+    .slide-up { transition: transform .2s ease, box-shadow .2s ease; }
+    .slide-up:hover { transform: translateY(-3px); box-shadow: 0 12px 28px -10px rgba(0,0,0,0.5); }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-extrabold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Capitol Trade Tracker</h1>
+        <p class="text-xs text-slate-400 mt-1">Real-time from volunteer-maintained Senate archive</p>
+      </div>
+      <div class="flex gap-2 w-full md:w-auto">
+        <input type="text" id="searchBox" placeholder="Search name, ticker..."
+          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 flex-1 md:w-64">
+        <button onclick="fetchData(true)" id="btnUpdate"
+          class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shrink-0">Refresh</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    <div id="infoBar" class="text-sm text-slate-400 mb-4">Loading latest disclosures...</div>
+    <div class="flex flex-wrap gap-3 mb-6 items-center">
+      <span class="text-xs uppercase text-slate-500 font-semibold">Sort</span>
+      <button onclick="sortAndRender('volume')" class="px-3 py-1.5 rounded-full bg-cyan-900/30 text-cyan-400 border border-cyan-800 text-xs">💰 Volume</button>
+      <button onclick="sortAndRender('trades')" class="px-3 py-1.5 rounded-full bg-violet-900/30 text-violet-400 border border-violet-800 text-xs">⚡ Trades</button>
+      <button onclick="sortAndRender('alpha')" class="px-3 py-1.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-xs">Alphabetical</button>
+      <button onclick="sortAndRender('recent')" class="px-3 py-1.5 rounded-full bg-emerald-900/30 text-emerald-400 border border-emerald-800 text-xs">🕐 Latest</button>
+    </div>
+    <div id="cardGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+  </main>
+
+  <div id="detailModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
+    <div class="min-h-screen px-4 py-6 flex items-start justify-center">
+      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeModal()"></div>
+      <div class="relative bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl shadow-2xl my-4 overflow-hidden">
+        <div class="p-5 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-900/95 backdrop-blur z-10">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border bg-slate-700/30 text-slate-300 border-slate-600">S</div>
+            <div>
+              <h2 id="modalName" class="text-xl font-bold"></h2>
+              <p id="modalMeta" class="text-sm text-slate-400"></p>
+            </div>
+          </div>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
+        </div>
+        <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div class="lg:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Est. Lifetime Volume</div><div id="kpiVol" class="text-xl font-bold text-white"></div></div>
+            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Total Trades</div><div id="kpiTrades" class="text-2xl font-bold text-white"></div></div>
+            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Unique Tickers</div><div id="kpiTickers" class="text-2xl font-bold text-cyan-400"></div></div>
+            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Last Filing</div><div id="kpiLast" class="text-lg font-bold text-emerald-400"></div></div>
+          </div>
+
+          <div class="lg:col-span-8 bg-slate-800/40 p-4 rounded-xl border border-slate-700">
+            <h3 class="text-sm font-semibold mb-3 text-slate-300">Trade Activity Per Year</h3>
+            <div class="h-64"><canvas id="lineChart"></canvas></div>
+          </div>
+          <div class="lg:col-span-4 bg-slate-800/40 p-4 rounded-xl border border-slate-700">
+            <h3 class="text-sm font-semibold mb-3 text-slate-300">Volume Allocation</h3>
+            <div class="h-64 flex justify-center items-center"><canvas id="pieChart"></canvas></div>
+          </div>
+
+          <div class="lg:col-span-12">
+            <h3 class="text-sm font-semibold mb-3 text-slate-300">Every Disclosed Transaction (scroll to see all)</h3>
+            <div class="overflow-x-auto rounded-xl border border-slate-700 max-h-[30rem] overflow-y-auto">
+              <table class="w-full text-sm text-left">
+                <thead class="bg-slate-800 text-slate-400 sticky top-0">
+                  <tr><th class="px-4 py-3 font-medium">Date</th><th class="px-4 py-3 font-medium">Ticker</th><th class="px-4 py-3 font-medium">Asset</th><th class="px-4 py-3 font-medium">Type</th><th class="px-4 py-3 font-medium">Amount</th></tr>
+                </thead>
+                <tbody id="tradesBody" class="divide-y divide-slate-800 bg-slate-900/30"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const UPSTREAM = "https://raw.githubusercontent.com/cryptoratsdev/senate-disclosures/main/reports/all.json";
+    let rawData = [], currentData = [], chartRefs = [];
+
+    function parseAmount(amt) {
+      if (!amt) return 0;
+      const m = String(amt).match(/\$?([\d,]+(?:\.\d+)?)(?:\s*-\s*\$?([\d,]+(?:\.\d+)?))?/);
+      if (!m) return 0;
+      const low = parseFloat(m[1].replace(/,/g, ''));
+      const high = m[2] ? parseFloat(m[2].replace(/,/g, '')) : low;
+      return (low + high) / 2;
+    }
+
+    function processData(source) {
+      const reports = source.all || [];
+      const seen = new Set();
+      const transactions = [];
+
+      reports.forEach(rep => {
+        const name = `${rep.first_name || ''} ${rep.last_name || ''}`.trim();
+        (rep.transactions || []).forEach(t => {
+          const key = `${name}|${t.ticker}|${t.date}|${t.order_type}|${t.amount}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          transactions.push({
+            politician: name,
+            date: t.date || '',
+            ticker: t.ticker || '-',
+            asset: t.asset_name || t.ticker || '-',
+            order_type: t.order_type || '-',
+            amount: t.amount || '-',
+            volume: parseAmount(t.amount)
+          });
+        });
+      });
+
+      const pols = {};
+      transactions.forEach(t => {
+        if (!pols[t.politician]) pols[t.politician] = { name: t.politician, transactions: [] };
+        pols[t.politician].transactions.push(t);
+      });
+
+      const out = Object.values(pols).map(p => {
+        const txs = p.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        const totalVol = txs.reduce((s, t) => s + t.volume, 0);
+        const tickerVol = {};
+        const yearCounts = {};
+        txs.forEach(t => {
+          if (t.ticker !== '-') tickerVol[t.ticker] = (tickerVol[t.ticker] || 0) + t.volume;
+          const yr = (t.date.split('/')[2]) || '';
+          if (yr) yearCounts[yr] = (yearCounts[yr] || 0) + 1;
+        });
+        const tvTotal = Object.values(tickerVol).reduce((a, b) => a + b, 0) || 1;
+        const allocation = {};
+        Object.entries(tickerVol).forEach(([tk, v]) => allocation[tk] = Math.round((v / tvTotal) * 100));
+        const topTicker = Object.entries(tickerVol).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
+        const years = Object.keys(yearCounts).sort();
+        return {
+          name: p.name,
+          trades: txs.length,
+          totalVolume: Math.round(totalVol),
+          lastTrade: txs[0]?.date || '',
+          topTicker,
+          allocation,
+          labels: years,
+          history: years.map(y => yearCounts[y] || 0),
+          transactions: txs
+        };
+      });
+
+      return out;
+    }
+
+    async function fetchData(force = false) {
+      const info = document.getElementById('infoBar');
+      const btn = document.getElementById('btnUpdate');
+      if (force) { btn.disabled = true; btn.textContent = 'Loading...'; }
+      try {
+        info.textContent = 'Downloading latest Senate disclosures...';
+        const res = await fetch(UPSTREAM);
+        if (!res.ok) throw new Error('Could not reach data source');
+        const source = await res.json();
+        rawData = processData(source);
+        currentData = [...rawData];
+        info.textContent = `Loaded ${rawData.length} politicians. Click Refresh for latest.`;
+        sortAndRender('volume');
+      } catch (e) {
+        info.textContent = 'Error loading data. If you opened this file directly on your computer, visit the GitHub Pages link instead.';
+        console.error(e);
+      } finally {
+        if (force) { btn.disabled = false; btn.textContent = 'Refresh'; }
+      }
+    }
+
+    function fmt(n) {
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+      return n.toString();
+    }
+
+    function renderCards(list) {
+      const g = document.getElementById('cardGrid');
+      g.innerHTML = '';
+      list.forEach(p => {
+        const tks = Object.keys(p.allocation);
+        const c = document.createElement('div');
+        c.className = 'glass rounded-xl border border-slate-700 p-5 cursor-pointer slide-up hover:border-slate-500';
+        c.onclick = () => openModal(p);
+        c.innerHTML = `
+          <div class="flex justify-between items-start gap-3 mb-3">
+            <div class="min-w-0">
+              <h3 class="font-bold text-lg truncate">${p.name}</h3>
+              <div class="text-xs text-slate-400 truncate mt-0.5">${tks.slice(0, 6).join(', ')}${tks.length > 6 ? ' +' + (tks.length - 6) : ''}</div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-lg font-bold text-cyan-400">$${fmt(p.totalVolume)}</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 mt-4">
+            <div class="bg-slate-800/40 rounded-lg p-2 border border-slate-700/40"><div class="text-[10px] text-slate-400 uppercase">Trades</div><div class="font-semibold text-sm">${p.trades}</div></div>
+            <div class="bg-slate-800/40 rounded-lg p-2 border border-slate-700/40"><div class="text-[10px] text-slate-400 uppercase">Tickers</div><div class="font-semibold text-sm">${tks.length}</div></div>
+            <div class="bg-slate-800/40 rounded-lg p-2 border border-slate-700/40"><div class="text-[10px] text-slate-400 uppercase">Last</div><div class="font-semibold text-sm">${p.lastTrade}</div></div>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-1">
+            ${tks.slice(0, 10).map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">${t}</span>`).join('')}
+            ${tks.length > 10 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">+${tks.length - 10}</span>` : ''}
+          </div>
+        `;
+        g.appendChild(c);
+      });
+    }
+
+    function sortAndRender(mode) {
+      if (mode === 'alpha') currentData.sort((a, b) => a.name.localeCompare(b.name));
+      else if (mode === 'volume') currentData.sort((a, b) => b.totalVolume - a.totalVolume);
+      else if (mode === 'trades') currentData.sort((a, b) => b.trades - a.trades);
+      else if (mode === 'recent') currentData.sort((a, b) => new Date(b.lastTrade || 0) - new Date(a.lastTrade || 0));
+      renderCards(currentData);
+    }
+
+    document.getElementById('searchBox').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      currentData = q ? rawData.filter(p => p.name.toLowerCase().includes(q) || Object.keys(p.allocation).some(t => t.toLowerCase().includes(q))) : [...rawData];
+      sortAndRender('volume');
+    });
+
+    function openModal(p) {
+      document.getElementById('detailModal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      document.getElementById('modalName').textContent = p.name;
+      document.getElementById('modalMeta').textContent = `Top holding: ${p.topTicker} • ${p.transactions.length} trades`;
+      document.getElementById('kpiVol').textContent = '$' + fmt(p.totalVolume);
+      document.getElementById('kpiTrades').textContent = p.trades;
+      document.getElementById('kpiTickers').textContent = Object.keys(p.allocation).length;
+      document.getElementById('kpiLast').textContent = p.lastTrade;
+
+      document.getElementById('tradesBody').innerHTML = p.transactions.map(t => `
+        <tr class="hover:bg-slate-800/30">
+          <td class="px-4 py-3 whitespace-nowrap">${t.date}</td>
+          <td class="px-4 py-3 font-mono text-cyan-300 text-xs whitespace-nowrap">${t.ticker}</td>
+          <td class="px-4 py-3 text-xs text-slate-300">${t.asset}</td>
+          <td class="px-4 py-3 whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${t.order_type}</span></td>
+          <td class="px-4 py-3 text-xs text-slate-300 whitespace-nowrap">${t.amount}</td>
+        </tr>
+      `).join('');
+
+      chartRefs.forEach(c => c.destroy());
+      chartRefs = [];
+
+      chartRefs.push(new Chart(document.getElementById('lineChart').getContext('2d'), {
+        type: 'bar',
+        data: { labels: p.labels, datasets: [{ label: 'Disclosed trades', data: p.history, backgroundColor: '#34d399', borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' } } } }
+      }));
+
+      const entries = Object.entries(p.allocation).sort((a, b) => b[1] - a[1]);
+      const pieLabels = [], pieValues = [];
+      let other = 0;
+      entries.forEach(([k, v], i) => { if (i < 15) { pieLabels.push(k); pieValues.push(v); } else { other += v; } });
+      if (other > 0) { pieLabels.push('Other'); pieValues.push(other); }
+      const colors = ['#34d399', '#22d3ee', '#f472b6', '#fbbf24', '#a78bfa', '#fb923c', '#c084fc', '#60a5fa', '#f87171', '#a3e635', '#2dd4bf', '#818cf8', '#facc15', '#e879f9', '#4ade80', '#94a3b8'];
+      chartRefs.push(new Chart(document.getElementById('pieChart').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: colors.slice(0, pieLabels.length), borderWidth: 0, hoverOffset: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 10 }, boxWidth: 10 } } } }
+      }));
+    }
+
+    function closeModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+      document.body.style.overflow = '';
+      chartRefs.forEach(c => c.destroy());
+      chartRefs = [];
+    }
+
+    fetchData();
+  </script>
+</body>
+</html>
