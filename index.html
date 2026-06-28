@@ -1,293 +1,298 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Capitol Trade Tracker — Live Senate Disclosures</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-    .glass { background: rgba(30,41,59,0.7); backdrop-filter: blur(10px); }
-    .slide-up { transition: transform .2s ease, box-shadow .2s ease; }
-    .slide-up:hover { transform: translateY(-3px); box-shadow: 0 12px 28px -10px rgba(0,0,0,0.5); }
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capitol Trade Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}.fade-in{animation:fadeIn .3s ease-in}@keyframes fadeIn{from{opacity:0}to{opacity:1}}</style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
+<body class="bg-gray-50 text-slate-800 font-sans antialiased">
 
-  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-extrabold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">Capitol Trade Tracker</h1>
-        <p class="text-xs text-slate-400 mt-1">Real-time from volunteer-maintained Senate archive</p>
+<nav class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2 cursor-pointer" onclick="showList()">
+      <div class="w-8 h-8 rounded-lg bg-blue-700 flex items-center justify-center text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
       </div>
-      <div class="flex gap-2 w-full md:w-auto">
-        <input type="text" id="searchBox" placeholder="Search name, ticker..."
-          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 flex-1 md:w-64">
-        <button onclick="fetchData(true)" id="btnUpdate"
-          class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold shrink-0">Refresh</button>
-      </div>
+      <span class="text-xl font-bold text-slate-900 tracking-tight">Capitol<span class="text-blue-700">Trades</span></span>
     </div>
-  </header>
-
-  <main class="max-w-7xl mx-auto px-4 py-6">
-    <div id="infoBar" class="text-sm text-slate-400 mb-4">Loading latest disclosures...</div>
-    <div class="flex flex-wrap gap-3 mb-6 items-center">
-      <span class="text-xs uppercase text-slate-500 font-semibold">Sort</span>
-      <button onclick="sortAndRender('volume')" class="px-3 py-1.5 rounded-full bg-cyan-900/30 text-cyan-400 border border-cyan-800 text-xs">💰 Volume</button>
-      <button onclick="sortAndRender('trades')" class="px-3 py-1.5 rounded-full bg-violet-900/30 text-violet-400 border border-violet-800 text-xs">⚡ Trades</button>
-      <button onclick="sortAndRender('alpha')" class="px-3 py-1.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-xs">Alphabetical</button>
-      <button onclick="sortAndRender('recent')" class="px-3 py-1.5 rounded-full bg-emerald-900/30 text-emerald-400 border border-emerald-800 text-xs">🕐 Latest</button>
-    </div>
-    <div id="cardGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
-  </main>
-
-  <div id="detailModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
-    <div class="min-h-screen px-4 py-6 flex items-start justify-center">
-      <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="closeModal()"></div>
-      <div class="relative bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl shadow-2xl my-4 overflow-hidden">
-        <div class="p-5 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-900/95 backdrop-blur z-10">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border bg-slate-700/30 text-slate-300 border-slate-600">S</div>
-            <div>
-              <h2 id="modalName" class="text-xl font-bold"></h2>
-              <p id="modalMeta" class="text-sm text-slate-400"></p>
-            </div>
-          </div>
-          <button onclick="closeModal()" class="text-slate-400 hover:text-white text-3xl leading-none">&times;</button>
+    <div class="flex-1 max-w-lg mx-4 hidden md:block">
+      <div class="relative">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         </div>
-        <div class="p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <div class="lg:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Est. Lifetime Volume</div><div id="kpiVol" class="text-xl font-bold text-white"></div></div>
-            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Total Trades</div><div id="kpiTrades" class="text-2xl font-bold text-white"></div></div>
-            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Unique Tickers</div><div id="kpiTickers" class="text-2xl font-bold text-cyan-400"></div></div>
-            <div class="glass p-4 rounded-xl border border-slate-700"><div class="text-[10px] uppercase text-slate-500 mb-1">Last Filing</div><div id="kpiLast" class="text-lg font-bold text-emerald-400"></div></div>
-          </div>
-
-          <div class="lg:col-span-8 bg-slate-800/40 p-4 rounded-xl border border-slate-700">
-            <h3 class="text-sm font-semibold mb-3 text-slate-300">Trade Activity Per Year</h3>
-            <div class="h-64"><canvas id="lineChart"></canvas></div>
-          </div>
-          <div class="lg:col-span-4 bg-slate-800/40 p-4 rounded-xl border border-slate-700">
-            <h3 class="text-sm font-semibold mb-3 text-slate-300">Volume Allocation</h3>
-            <div class="h-64 flex justify-center items-center"><canvas id="pieChart"></canvas></div>
-          </div>
-
-          <div class="lg:col-span-12">
-            <h3 class="text-sm font-semibold mb-3 text-slate-300">Every Disclosed Transaction (scroll to see all)</h3>
-            <div class="overflow-x-auto rounded-xl border border-slate-700 max-h-[30rem] overflow-y-auto">
-              <table class="w-full text-sm text-left">
-                <thead class="bg-slate-800 text-slate-400 sticky top-0">
-                  <tr><th class="px-4 py-3 font-medium">Date</th><th class="px-4 py-3 font-medium">Ticker</th><th class="px-4 py-3 font-medium">Asset</th><th class="px-4 py-3 font-medium">Type</th><th class="px-4 py-3 font-medium">Amount</th></tr>
-                </thead>
-                <tbody id="tradesBody" class="divide-y divide-slate-800 bg-slate-900/30"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <input type="text" id="globalSearch" oninput="filterList()" placeholder="Search politicians, tickers, companies..." class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm transition">
       </div>
     </div>
   </div>
+</nav>
 
-  <script>
-    const UPSTREAM = "https://raw.githubusercontent.com/cryptoratsdev/senate-disclosures/main/reports/all.json";
-    let rawData = [], currentData = [], chartRefs = [];
+<main id="app" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 fade-in"></main>
 
-    function parseAmount(amt) {
-      if (!amt) return 0;
-      const m = String(amt).match(/\$?([\d,]+(?:\.\d+)?)(?:\s*-\s*\$?([\d,]+(?:\.\d+)?))?/);
-      if (!m) return 0;
-      const low = parseFloat(m[1].replace(/,/g, ''));
-      const high = m[2] ? parseFloat(m[2].replace(/,/g, '')) : low;
-      return (low + high) / 2;
-    }
+<script>
+const UPSTREAM = "https://raw.githubusercontent.com/cryptoratsdev/senate-disclosures/main/reports/all.json";
+let allPoliticians = [], activePol = null, charts = [];
 
-    function processData(source) {
-      const reports = source.all || [];
-      const seen = new Set();
-      const transactions = [];
+const MOCK_RAW = {all:[
+{first_name:"Nancy",last_name:"Pelosi",transactions:[
+{date:"06/18/2025",transaction_date:"06/07/2025",ticker:"NVDA",asset_name:"NVIDIA Corp",order_type:"Purchase",amount:"$100,001 - $250,000"},
+{date:"05/02/2025",transaction_date:"04/22/2025",ticker:"AAPL",asset_name:"Apple Inc",order_type:"Sale",amount:"$500,001 - $1,000,000"},
+{date:"03/14/2025",transaction_date:"03/05/2025",ticker:"GOOGL",asset_name:"Alphabet Inc",order_type:"Purchase",amount:"$50,001 - $100,000"},
+{date:"02/10/2025",transaction_date:"01/30/2025",ticker:"MSFT",asset_name:"Microsoft Corp",order_type:"Purchase",amount:"$250,001 - $500,000"},
+{date:"01/15/2025",transaction_date:"01/05/2025",ticker:"TSLA",asset_name:"Tesla Inc",order_type:"Sale",amount:"$100,001 - $250,000"},
+{date:"12/12/2024",transaction_date:"11/28/2024",ticker:"AVGO",asset_name:"Broadcom Inc",order_type:"Purchase",amount:"$15,001 - $50,000"},
+{date:"11/05/2024",transaction_date:"10/25/2024",ticker:"CRM",asset_name:"Salesforce Inc",order_type:"Purchase",amount:"$15,001 - $50,000"},
+{date:"09/20/2024",transaction_date:"09/10/2024",ticker:"SNOW",asset_name:"Snowflake Inc",order_type:"Sale",amount:"$1,001 - $15,000"},
+{date:"08/15/2024",transaction_date:"08/01/2024",ticker:"AMD",asset_name:"AMD",order_type:"Purchase",amount:"$50,001 - $100,000"},
+{date:"07/08/2024",transaction_date:"06/28/2024",ticker:"INTC",asset_name:"Intel Corp",order_type:"Sale",amount:"$1,001 - $15,000"}
+]},
+{first_name:"Dan",last_name:"Crenshaw",transactions:[
+{date:"06/12/2025",transaction_date:"05/30/2025",ticker:"XOM",asset_name:"Exxon Mobil",order_type:"Purchase",amount:"$100,001 - $250,000"},
+{date:"05/20/2025",transaction_date:"05/10/2025",ticker:"CVX",asset_name:"Chevron Corp",order_type:"Purchase",amount:"$50,001 - $100,000"},
+{date:"04/03/2025",transaction_date:"03/22/2025",ticker:"OXY",asset_name:"Occidental Petroleum",order_type:"Sale",amount:"$15,001 - $50,000"},
+{date:"02/18/2025",transaction_date:"02/05/2025",ticker:"COP",asset_name:"ConocoPhillips",order_type:"Purchase",amount:"$50,001 - $100,000"},
+{date:"01/10/2025",transaction_date:"12/28/2024",ticker:"SLB",asset_name:"Schlumberger",order_type:"Sale",amount:"$1,001 - $15,000"},
+{date:"11/22/2024",transaction_date:"11/10/2024",ticker:"MPC",asset_name:"Marathon Petroleum",order_type:"Purchase",amount:"$15,001 - $50,000"}
+]},
+{first_name:"Mitch",last_name:"McConnell",transactions:[
+{date:"06/05/2025",transaction_date:"05/25/2025",ticker:"JNJ",asset_name:"Johnson & Johnson",order_type:"Purchase",amount:"$15,001 - $50,000"},
+{date:"04/12/2025",transaction_date:"04/01/2025",ticker:"UNH",asset_name:"UnitedHealth Group",order_type:"Purchase",amount:"$100,001 - $250,000"},
+{date:"03/01/2025",transaction_date:"02/18/2025",ticker:"PFE",asset_name:"Pfizer Inc",order_type:"Sale",amount:"$50,001 - $100,000"},
+{date:"01/20/2025",transaction_date:"01/08/2025",ticker:"LLY",asset_name:"Eli Lilly & Co",order_type:"Purchase",amount:"$50,001 - $100,000"},
+{date:"12/05/2024",transaction_date:"11/20/2024",ticker:"ABBV",asset_name:"AbbVie Inc",order_type:"Sale",amount:"$15,001 - $50,000"}
+]},
+{first_name:"Jon",last_name:"Ossoff",transactions:[
+{date:"06/22/2025",transaction_date:"06/10/2025",ticker:"AMZN",asset_name:"Amazon.com Inc",order_type:"Purchase",amount:"$250,001 - $500,000"},
+{date:"05/15/2025",transaction_date:"05/01/2025",ticker:"NFLX",asset_name:"Netflix Inc",order_type:"Purchase",amount:"$100,001 - $250,000"},
+{date:"04/08/2025",transaction_date:"03/28/2025",ticker:"META",asset_name:"Meta Platforms",order_type:"Sale",amount:"$500,001 - $1,000,000"},
+{date:"03/02/2025",transaction_date:"02/15/2025",ticker:"DIS",asset_name:"Walt Disney Co",order_type:"Purchase",amount:"$50,001 - $100,000"},
+{date:"01/18/2025",transaction_date:"01/05/2025",ticker:"V",asset_name:"Visa Inc",order_type:"Sale",amount:"$15,001 - $50,000"}
+]}
+]};
 
-      reports.forEach(rep => {
-        const name = `${rep.first_name || ''} ${rep.last_name || ''}`.trim();
-        (rep.transactions || []).forEach(t => {
-          const key = `${name}|${t.ticker}|${t.date}|${t.order_type}|${t.amount}`;
-          if (seen.has(key)) return;
-          seen.add(key);
-          transactions.push({
-            politician: name,
-            date: t.date || '',
-            ticker: t.ticker || '-',
-            asset: t.asset_name || t.ticker || '-',
-            order_type: t.order_type || '-',
-            amount: t.amount || '-',
-            volume: parseAmount(t.amount)
-          });
-        });
-      });
+function fmt(n){if(!n)return'—';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'k';return n.toString()}
+function initials(n){return n.split(' ').map(x=>x[0]).join('').substring(0,2).toUpperCase()}
+function avatarColor(n){const p=['bg-blue-100 text-blue-700','bg-green-100 text-green-700','bg-purple-100 text-purple-700','bg-orange-100 text-orange-700','bg-pink-100 text-pink-700','bg-indigo-100 text-indigo-700'];let h=0;for(let i=0;i<n.length;i++)h=n.charCodeAt(i)+((h<<5)-h);return p[Math.abs(h)%p.length]}
+function parseAmount(a){if(!a)return 0;const m=String(a).match(/\$?([\d,]+(?:\.\d+)?)(?:\s*-\s*\$?([\d,]+(?:\.\d+)?))?/);if(!m)return 0;const l=parseFloat(m[1].replace(/,/g,'')),h=m[2]?parseFloat(m[2].replace(/,/g,'')):l;return(l+h)/2}
+function amountWidth(a){if(!a)return 0;const m=a.match(/\$?([\d,]+)\s*-\s*\$?([\d,]+(?:,\d{3})*)/);if(m){const mx=parseInt(m[2].replace(/,/g,''));return Math.min(100,Math.round((mx/1000000)*100))}const s=a.match(/\$?([\d,]+)/);if(s)return Math.min(100,Math.round((parseInt(s[1].replace(/,/g,''))/1000000)*100));return 0}
+function daysBetween(p,t){if(!p||!t||p===t)return'—';const a=new Date(p),b=new Date(t);if(isNaN(a)||isNaN(b))return'—';const d=Math.round((a-b)/(864e5));if(d<=0)return'—';const c=d<=30?'text-green-600':d<=45?'text-yellow-600':'text-red-600';return`<span class="${c} font-semibold">${d}d</span>`}
 
-      const pols = {};
-      transactions.forEach(t => {
-        if (!pols[t.politician]) pols[t.politician] = { name: t.politician, transactions: [] };
-        pols[t.politician].transactions.push(t);
-      });
-
-      const out = Object.values(pols).map(p => {
-        const txs = p.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-        const totalVol = txs.reduce((s, t) => s + t.volume, 0);
-        const tickerVol = {};
-        const yearCounts = {};
-        txs.forEach(t => {
-          if (t.ticker !== '-') tickerVol[t.ticker] = (tickerVol[t.ticker] || 0) + t.volume;
-          const yr = (t.date.split('/')[2]) || '';
-          if (yr) yearCounts[yr] = (yearCounts[yr] || 0) + 1;
-        });
-        const tvTotal = Object.values(tickerVol).reduce((a, b) => a + b, 0) || 1;
-        const allocation = {};
-        Object.entries(tickerVol).forEach(([tk, v]) => allocation[tk] = Math.round((v / tvTotal) * 100));
-        const topTicker = Object.entries(tickerVol).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
-        const years = Object.keys(yearCounts).sort();
-        return {
-          name: p.name,
-          trades: txs.length,
-          totalVolume: Math.round(totalVol),
-          lastTrade: txs[0]?.date || '',
-          topTicker,
-          allocation,
-          labels: years,
-          history: years.map(y => yearCounts[y] || 0),
-          transactions: txs
-        };
-      });
-
-      return out;
-    }
-
-    async function fetchData(force = false) {
-      const info = document.getElementById('infoBar');
-      const btn = document.getElementById('btnUpdate');
-      if (force) { btn.disabled = true; btn.textContent = 'Loading...'; }
-      try {
-        info.textContent = 'Downloading latest Senate disclosures...';
-        const res = await fetch(UPSTREAM);
-        if (!res.ok) throw new Error('Could not reach data source');
-        const source = await res.json();
-        rawData = processData(source);
-        currentData = [...rawData];
-        info.textContent = `Loaded ${rawData.length} politicians. Click Refresh for latest.`;
-        sortAndRender('volume');
-      } catch (e) {
-        info.textContent = 'Error loading data. If you opened this file directly on your computer, visit the GitHub Pages link instead.';
-        console.error(e);
-      } finally {
-        if (force) { btn.disabled = false; btn.textContent = 'Refresh'; }
-      }
-    }
-
-    function fmt(n) {
-      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-      return n.toString();
-    }
-
-    function renderCards(list) {
-      const g = document.getElementById('cardGrid');
-      g.innerHTML = '';
-      list.forEach(p => {
-        const tks = Object.keys(p.allocation);
-        const c = document.createElement('div');
-        c.className = 'glass rounded-xl border border-slate-700 p-5 cursor-pointer slide-up hover:border-slate-500';
-        c.onclick = () => openModal(p);
-        c.innerHTML = `
-          <div class="flex justify-between items-start gap-3 mb-3">
-            <div class="min-w-0">
-              <h3 class="font-bold text-lg truncate">${p.name}</h3>
-              <div class="text-xs text-slate-400 truncate mt-0.5">${tks.slice(0, 6).join(', ')}${tks.length > 6 ? ' +' + (tks.length - 6) : ''}</div>
-            </div>
-            <div class="text-right shrink-0">
-              <div class="text-lg font-bold text-cyan-400">$${fmt(p.totalVolume)}</div>
-            </div>
-          </div>
-          <div class="grid grid-cols-3 gap-2 mt-4">
-            <div class="bg-slate-800/40 rounded-lg p-2 border border-slate-700/40"><div class="text-[10px] text-slate-400 uppercase">Trades</div><div class="font-semibold text-sm">${p.trades}</div></div>
-            <div class="bg-slate-800/40 rounded-lg p-2 border border-slate-700/40"><div class="text-[10px] text-slate-400 uppercase">Tickers</div><div class="font-semibold text-sm">${tks.length}</div></div>
-            <div class="bg-slate-800/40 rounded-lg p-2 border border-slate-700/40"><div class="text-[10px] text-slate-400 uppercase">Last</div><div class="font-semibold text-sm">${p.lastTrade}</div></div>
-          </div>
-          <div class="mt-3 flex flex-wrap gap-1">
-            ${tks.slice(0, 10).map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">${t}</span>`).join('')}
-            ${tks.length > 10 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400">+${tks.length - 10}</span>` : ''}
-          </div>
-        `;
-        g.appendChild(c);
-      });
-    }
-
-    function sortAndRender(mode) {
-      if (mode === 'alpha') currentData.sort((a, b) => a.name.localeCompare(b.name));
-      else if (mode === 'volume') currentData.sort((a, b) => b.totalVolume - a.totalVolume);
-      else if (mode === 'trades') currentData.sort((a, b) => b.trades - a.trades);
-      else if (mode === 'recent') currentData.sort((a, b) => new Date(b.lastTrade || 0) - new Date(a.lastTrade || 0));
-      renderCards(currentData);
-    }
-
-    document.getElementById('searchBox').addEventListener('input', e => {
-      const q = e.target.value.toLowerCase().trim();
-      currentData = q ? rawData.filter(p => p.name.toLowerCase().includes(q) || Object.keys(p.allocation).some(t => t.toLowerCase().includes(q))) : [...rawData];
-      sortAndRender('volume');
+function processData(src){
+  const reps=src.all||[];
+  const seen=new Set();
+  const txs=[];
+  reps.forEach(r=>{
+    const name=`${r.first_name||''} ${r.last_name||''}`.trim();
+    (r.transactions||[]).forEach(t=>{
+      const key=`${name}|${t.ticker}|${t.date}|${t.order_type}|${t.amount}`;
+      if(seen.has(key))return;
+      seen.add(key);
+      txs.push({politician:name,date:t.date||'',traded:t.transaction_date||t.date||'',ticker:t.ticker||'-',asset:t.asset_name||t.ticker||'-',order_type:t.order_type||'-',amount:t.amount||'-',volume:parseAmount(t.amount)});
     });
+  });
+  const pols={};
+  txs.forEach(t=>{if(!pols[t.politician])pols[t.politician]={name:t.politician,txs:[]};pols[t.politician].txs.push(t)});
+  return Object.values(pols).map(p=>{
+    const t=p.txs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const vol=t.reduce((s,x)=>s+x.volume,0);
+    const tv={},yc={};
+    t.forEach(x=>{if(x.ticker!=='-')tv[x.ticker]=(tv[x.ticker]||0)+x.volume;const y=(x.date.split('/')[2])||'';if(y)yc[y]=(yc[y]||0)+1});
+    const tot=Object.values(tv).reduce((a,b)=>a+b,0)||1;
+    const alloc={};Object.entries(tv).forEach(([k,v])=>alloc[k]=Math.round((v/tot)*100));
+    const top=Object.entries(tv).sort((a,b)=>b[1]-a[1])[0]?.[0]||'-';
+    const years=Object.keys(yc).sort();
+    return{name:p.name,trades:t.length,totalVolume:Math.round(vol),lastTrade:t[0]?.date||'',topTicker:top,alloc,years,hist:years.map(y=>yc[y]||0),txs:t};
+  }).sort((a,b)=>b.totalVolume-a.totalVolume);
+}
 
-    function openModal(p) {
-      document.getElementById('detailModal').classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-      document.getElementById('modalName').textContent = p.name;
-      document.getElementById('modalMeta').textContent = `Top holding: ${p.topTicker} • ${p.transactions.length} trades`;
-      document.getElementById('kpiVol').textContent = '$' + fmt(p.totalVolume);
-      document.getElementById('kpiTrades').textContent = p.trades;
-      document.getElementById('kpiTickers').textContent = Object.keys(p.allocation).length;
-      document.getElementById('kpiLast').textContent = p.lastTrade;
+async function init(){
+  let raw;
+  try{const r=await fetch(UPSTREAM);if(!r.ok)throw new Error('bad');raw=await r.json()}
+  catch(e){raw=MOCK_RAW}
+  allPoliticians=processData(raw);
+  showList();
+}
 
-      document.getElementById('tradesBody').innerHTML = p.transactions.map(t => `
-        <tr class="hover:bg-slate-800/30">
-          <td class="px-4 py-3 whitespace-nowrap">${t.date}</td>
-          <td class="px-4 py-3 font-mono text-cyan-300 text-xs whitespace-nowrap">${t.ticker}</td>
-          <td class="px-4 py-3 text-xs text-slate-300">${t.asset}</td>
-          <td class="px-4 py-3 whitespace-nowrap"><span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${t.order_type}</span></td>
-          <td class="px-4 py-3 text-xs text-slate-300 whitespace-nowrap">${t.amount}</td>
-        </tr>
-      `).join('');
+function showList(){
+  activePol=null;destroyCharts();
+  const pols=allPoliticians;
+  document.getElementById('app').innerHTML=`
+    <div class="mb-6">
+      <h1 class="text-2xl font-extrabold text-gray-900">Senate Trade Disclosures</h1>
+      <p class="text-sm text-gray-500 mt-1">Track every disclosed transaction by U.S. Senators</p>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6" id="listGrid"></div>
+  `;
+  renderList(pols);
+}
 
-      chartRefs.forEach(c => c.destroy());
-      chartRefs = [];
+function renderList(list){
+  const g=document.getElementById('listGrid');
+  g.innerHTML=list.map(p=>{
+    const c=avatarColor(p.name), ini=initials(p.name);
+    return`
+    <div onclick="showProfile('${p.name.replace(/'/g,"\\'")}')" class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition cursor-pointer p-6 fade-in">
+      <div class="flex items-start justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-full ${c} flex items-center justify-center text-lg font-bold">${ini}</div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-900 leading-tight">${p.name}</h3>
+            <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">U.S. Senate</span>
+          </div>
+        </div>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
+      <div class="mt-5 grid grid-cols-3 gap-4 border-t border-gray-100 pt-4">
+        <div><div class="text-xs text-gray-500 uppercase tracking-wide">Volume</div><div class="text-sm font-bold text-gray-900">$${fmt(p.totalVolume)}</div></div>
+        <div><div class="text-xs text-gray-500 uppercase tracking-wide">Trades</div><div class="text-sm font-bold text-gray-900">${p.trades}</div></div>
+        <div><div class="text-xs text-gray-500 uppercase tracking-wide">Latest</div><div class="text-sm font-bold text-gray-900">${p.lastTrade||'—'}</div></div>
+      </div>
+    </div>`}).join('');
+}
 
-      chartRefs.push(new Chart(document.getElementById('lineChart').getContext('2d'), {
-        type: 'bar',
-        data: { labels: p.labels, datasets: [{ label: 'Disclosed trades', data: p.history, backgroundColor: '#34d399', borderRadius: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' } } } }
-      }));
+function filterList(){
+  const q=document.getElementById('globalSearch').value.toLowerCase().trim();
+  const list=q?allPoliticians.filter(p=>p.name.toLowerCase().includes(q)||Object.keys(p.alloc).some(t=>t.toLowerCase().includes(q))):allPoliticians;
+  renderList(list);
+}
 
-      const entries = Object.entries(p.allocation).sort((a, b) => b[1] - a[1]);
-      const pieLabels = [], pieValues = [];
-      let other = 0;
-      entries.forEach(([k, v], i) => { if (i < 15) { pieLabels.push(k); pieValues.push(v); } else { other += v; } });
-      if (other > 0) { pieLabels.push('Other'); pieValues.push(other); }
-      const colors = ['#34d399', '#22d3ee', '#f472b6', '#fbbf24', '#a78bfa', '#fb923c', '#c084fc', '#60a5fa', '#f87171', '#a3e635', '#2dd4bf', '#818cf8', '#facc15', '#e879f9', '#4ade80', '#94a3b8'];
-      chartRefs.push(new Chart(document.getElementById('pieChart').getContext('2d'), {
-        type: 'doughnut',
-        data: { labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: colors.slice(0, pieLabels.length), borderWidth: 0, hoverOffset: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { color: '#cbd5e1', font: { size: 10 }, boxWidth: 10 } } } }
-      }));
-    }
+function showProfile(name){
+  activePol=allPoliticians.find(p=>p.name===name);
+  if(!activePol)return;destroyCharts();
+  const p=activePol,c=avatarColor(p.name),ini=initials(p.name);
+  document.getElementById('app').innerHTML=`
+    <div class="mb-4 flex items-center gap-2 text-sm text-gray-500 fade-in">
+      <span class="cursor-pointer hover:text-blue-700" onclick="showList()">Politicians</span>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      <span class="text-gray-900 font-medium">${p.name}</span>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 fade-in">
+      <div class="lg:col-span-3">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 lg:sticky lg:top-24">
+          <div class="w-20 h-20 rounded-full ${c} flex items-center justify-center text-2xl font-bold mx-auto mb-3">${ini}</div>
+          <h1 class="text-center text-xl font-extrabold text-gray-900 mb-1">${p.name}</h1>
+          <div class="text-center text-sm text-gray-500 mb-6">United States Senator</div>
+          <div class="space-y-3">
+            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100"><div class="text-xs text-gray-500 uppercase tracking-wide">Volume</div><div class="text-lg font-bold text-gray-900">$${fmt(p.totalVolume)}</div></div>
+            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100"><div class="text-xs text-gray-500 uppercase tracking-wide">Trades</div><div class="text-lg font-bold text-gray-900">${p.trades}</div></div>
+            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100"><div class="text-xs text-gray-500 uppercase tracking-wide">Issuers</div><div class="text-lg font-bold text-gray-900">${Object.keys(p.alloc).length}</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="lg:col-span-9">
+        <div class="border-b border-gray-200 mb-6">
+          <nav class="-mb-px flex gap-8">
+            <button id="tab-trades" onclick="switchTab('trades')" class="border-b-2 border-blue-600 text-blue-700 pb-3 px-1 text-sm font-medium transition">Trading Activity</button>
+            <button id="tab-allocs" onclick="switchTab('allocs')" class="border-b-2 border-transparent text-gray-500 hover:text-gray-700 pb-3 px-1 text-sm font-medium transition">Allocations</button>
+          </nav>
+        </div>
+        <div id="tradesPanel">
+          <div class="bg-white rounded-t-xl border border-gray-200 border-b-0 p-4 flex flex-col sm:flex-row gap-3">
+            <input id="tradeSearch" oninput="renderTrades()" placeholder="Search issuer or ticker..." class="block w-full sm:w-64 pl-3 pr-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent">
+            <select id="typeFilter" onchange="renderTrades()" class="block w-full sm:w-40 pl-3 pr-8 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent">
+              <option value="All">All Types</option><option value="Purchase">Purchase</option><option value="Sale">Sale</option>
+            </select>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-b-xl overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issuer</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Published</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Traded</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filed After</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+            </tr></thead><tbody id="tradeBody" class="bg-white divide-y divide-gray-200"></tbody></table>
+          </div>
+        </div>
+        <div id="allocsPanel" style="display:none">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><h3 class="text-lg font-bold text-gray-900 mb-4">Trade Activity Over Time</h3><div class="h-64"><canvas id="lineC"></canvas></div></div>
+            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"><h3 class="text-lg font-bold text-gray-900 mb-4">Volume Allocation</h3><div class="h-64 flex justify-center items-center"><canvas id="pieC"></canvas></div></div>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200"><thead class="bg-gray-50"><tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticker</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Volume %</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocation</th>
+            </tr></thead><tbody id="allocBody" class="divide-y divide-gray-200"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  renderTrades();switchTab('trades');
+}
 
-    function closeModal() {
-      document.getElementById('detailModal').classList.add('hidden');
-      document.body.style.overflow = '';
-      chartRefs.forEach(c => c.destroy());
-      chartRefs = [];
-    }
+function renderTrades(){
+  const q=document.getElementById('tradeSearch').value.toLowerCase().trim();
+  const ty=document.getElementById('typeFilter').value;
+  const rows=activePol.txs.filter(t=>{
+    if(ty!=='All'&&t.order_type!==ty)return false;
+    if(!q)return true;return t.asset.toLowerCase().includes(q)||t.ticker.toLowerCase().includes(q);
+  });
+  document.getElementById('tradeBody').innerHTML=rows.map(t=>{
+    const ic=getIssuer(t.asset,t.ticker);
+    const badge=t.order_type==='Purchase'?`<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200"><svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>Buy</span>`
+      :t.order_type==='Sale'?`<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200"><svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>Sale</span>`
+      :`<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">${t.order_type}</span>`;
+    const aw=amountWidth(t.amount);
+    return`
+    <tr class="hover:bg-gray-50 transition">
+      <td class="px-6 py-4 whitespace-nowrap"><div class="flex items-center"><div class="w-8 h-8 rounded-full ${ic.color} flex items-center justify-center text-xs font-bold mr-3">${initials(t.asset||t.ticker)}</div><div><div class="text-sm font-semibold text-gray-900">${t.asset}</div><div class="text-xs text-gray-500"><span class="bg-gray-100 px-1.5 py-0.5 rounded text-gray-600 font-medium">${t.ticker}</span></div></div></div></td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${t.date}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${t.traded}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm">${daysBetween(t.date,t.traded)}</td>
+      <td class="px-6 py-4 whitespace-nowrap">${badge}</td>
+      <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900">${t.amount}</div><div class="w-24 bg-gray-200 rounded-full h-1.5 mt-1"><div class="bg-blue-600 h-1.5 rounded-full" style="width:${aw}%"></div></div></td>
+    </tr>`}).join('');
+}
 
-    fetchData();
-  </script>
+function getIssuer(name,ticker){
+  const colors=['bg-blue-100 text-blue-700','bg-green-100 text-green-700','bg-purple-100 text-purple-700','bg-orange-100 text-orange-700','bg-pink-100 text-pink-700','bg-indigo-100 text-indigo-700'];
+  const seed=(name||ticker||'X');let h=0;for(let i=0;i<seed.length;i++)h=seed.charCodeAt(i)+((h<<5)-h);return{color:colors[Math.abs(h)%colors.length]}
+}
+
+function switchTab(tab){
+  if(tab==='trades'){
+    document.getElementById('tab-trades').className='border-b-2 border-blue-600 text-blue-700 pb-3 px-1 text-sm font-medium transition';
+    document.getElementById('tab-allocs').className='border-b-2 border-transparent text-gray-500 hover:text-gray-700 pb-3 px-1 text-sm font-medium transition';
+    document.getElementById('tradesPanel').style.display='block';document.getElementById('allocsPanel').style.display='none';
+  }else{
+    document.getElementById('tab-trades').className='border-b-2 border-transparent text-gray-500 hover:text-gray-700 pb-3 px-1 text-sm font-medium transition';
+    document.getElementById('tab-allocs').className='border-b-2 border-blue-600 text-blue-700 pb-3 px-1 text-sm font-medium transition';
+    document.getElementById('tradesPanel').style.display='none';document.getElementById('allocsPanel').style.display='block';
+    renderAllocs();
+  }
+}
+
+function renderAllocs(){
+  const p=activePol;destroyCharts();
+  const entries=Object.entries(p.alloc).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('allocBody').innerHTML=entries.map(([tk,pc])=>`
+    <tr class="hover:bg-gray-50 transition">
+      <td class="px-6 py-4 whitespace-nowrap text-sm font-mono font-semibold text-gray-900">${tk}</td>
+      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${pc}%</td>
+      <td class="px-6 py-4 whitespace-nowrap align-middle">
+        <div class="w-full bg-gray-200 rounded-full h-2 max-w-xs"><div class="bg-blue-600 h-2 rounded-full" style="width:${pc}%"></div></div>
+      </td>
+    </tr>`).join('');
+
+  const ctxL=document.getElementById('lineC').getContext('2d');
+  charts.push(new Chart(ctxL,{type:'bar',data:{labels:p.years,datasets:[{label:'Disclosed trades',data:p.hist,backgroundColor:'#2563eb',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#e2e8f0'},ticks:{color:'#64748b'}},x:{grid:{display:false},ticks:{color:'#64748b'}}}}}));
+
+  let labels=[],vals=[],other=0;
+  entries.forEach(([k,v],i)=>{if(i<10){labels.push(k);vals.push(v);}else{other+=v;}});
+  if(other>0){labels.push('Other');vals.push(other);}
+  const colors=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#be123c','#4f46e5','#0d9488','#84cc16','#94a3b8'];
+  const ctxP=document.getElementById('pieC').getContext('2d');
+  charts.push(new Chart(ctxP,{type:'doughnut',data:{labels:labels,datasets:[{data:vals,backgroundColor:colors.slice(0,labels.length),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{color:'#475569',font:{size:10},boxWidth:10}}}}}));
+}
+
+function destroyCharts(){charts.forEach(c=>c.destroy());charts=[]}
+
+init();
+</script>
 </body>
 </html>
