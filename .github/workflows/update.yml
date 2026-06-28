@@ -1,1 +1,87 @@
+import requests, json, re
 
+UPSTREAM = "https://raw.githubusercontent.com/cryptoratsdev/senate-disclosures/main/reports/all.json"
+OUTPUT = "data.json"
+
+def parse_amount(amt):
+    if not amt:
+        return 0
+    m = re.search(r'\$?([\d,]+(?:\.\d+)?)(?:\s*-\s*\$?([\d,]+(?:\.\d+)?))?', str(amt))
+    if not m:
+        return 0
+    low = float(m.group(1).replace(",", ""))
+    high = float(m.group(2).replace(",", "")) if m.group(2) else low
+    return (low + high) / 2
+
+def main():
+    print("Downloading...")
+    r = requests.get(UPSTREAM, timeout=60)
+    r.raise_for_status()
+    source = r.json()
+    reports = source.get("all", [])
+    
+    seen = set()
+    transactions = []
+    
+    for rep in reports:
+        name = f"{rep.get('first_name','')} {rep.get('last_name','')}".strip()
+        for t in rep.get("transactions", []):
+            key = f"{name}|{t.get('ticker')}|{t.get('date')}|{t.get('order_type')}|{t.get('amount')}"
+            if key in seen:
+                continue
+            seen.add(key)
+            transactions.append({
+                "politician": name,
+                "date": t.get("date", ""),
+                "ticker": t.get("ticker") or "-",
+                "asset_name": t.get("asset_name") or t.get("ticker") or "-",
+                "order_type": t.get("order_type") or "-",
+                "amount": t.get("amount") or "-",
+                "volume": parse_amount(t.get("amount"))
+            })
+    
+    pols = {}
+    for tr in transactions:
+        n = tr["politician"]
+        if n not in pols:
+            pols[n] = {"name": n, "transactions": []}
+        pols[n]["transactions"].append(tr)
+    
+    output = []
+    for name, p in pols.items():
+        txs = sorted(p["transactions"], key=lambda x: x["date"], reverse=True)
+        total_vol = sum(t["volume"] for t in txs)
+        
+        ticker_vol = {}
+        year_counts = {}
+        for t in txs:
+            tk = t["ticker"]
+            if tk and tk != "-":
+                ticker_vol[tk] = ticker_vol.get(tk, 0) + t["volume"]
+            yr = (t["date"] or "").split("/")[-1]
+            if yr:
+                year_counts[yr] = year_counts.get(yr, 0) + 1
+        
+        tv_total = sum(ticker_vol.values()) or 1
+        allocation = {tk: round((v / tv_total) * 100) for tk, v in ticker_vol.items() if v > 0}
+        top = max(ticker_vol, key=ticker_vol.get) if ticker_vol else "-"
+        
+        output.append({
+            "name": name,
+            "trades": len(txs),
+            "totalVolume": round(total_vol),
+            "lastTrade": txs[0]["date"] if txs else "",
+            "topTicker": top,
+            "allocation": allocation,
+            "labels": sorted(year_counts.keys()),
+            "history": [year_counts.get(y, 0) for y in sorted(year_counts.keys())],
+            "transactions": txs
+        })
+    
+    with open(OUTPUT, "w", encoding="utf-8") as f:
+        json.dump(output, f, ensure_ascii=False)
+    
+    print(f"Done: {len(output)} politicians, {len(transactions)} trades.")
+
+if __name__ == "__main__":
+    main()
